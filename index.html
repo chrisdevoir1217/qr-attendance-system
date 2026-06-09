@@ -1,44 +1,107 @@
-let lastScan = "";
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QR Attendance Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
 
-function onScanSuccess(decodedText) {
-  if (decodedText === lastScan) return;
-  lastScan = decodedText;
-
-  const status = document.getElementById("status");
-
-  // 🔵 scanning detected
-  status.innerText = "Scanning...";
-  status.style.background = "#ffe08a"; // yellow
-
-  fetch(webhookURL, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      student_id: decodedText,
-      timestamp: new Date().toISOString()
-    })
-  })
-  .then(res => {
-    if (res.ok) {
-      // 🟢 SUCCESS
-      status.innerText = "✅ DONE - QR SENT";
-      status.style.background = "#7CFC90"; // green
-
-      // reset after 2 seconds
-      setTimeout(() => {
-        status.innerText = "Waiting for scan...";
-        status.style.background = "#eee";
-      }, 2000);
-
-    } else {
-      // 🔴 server error
-      status.innerText = "❌ ERROR - NOT SENT";
-      status.style.background = "#ff6b6b";
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
     }
-  })
-  .catch(err => {
-    status.innerText = "❌ NETWORK ERROR";
-    status.style.background = "#ff6b6b";
-    console.log(err);
-  });
-}
+
+    #reader {
+      width: 300px;
+      margin: auto;
+    }
+
+    #status {
+      margin-top: 20px;
+      padding: 15px;
+      background: #eee;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>QR Attendance Scanner</h2>
+
+  <div id="reader"></div>
+  <div id="status">Waiting for scan...</div>
+
+  <script>
+    // 🔴 CHANGE THIS TO YOUR WEBHOOK
+    const webhookURL = "https://your-webhook-link.com";
+
+    let lastScan = "";
+    let scanningLocked = false;
+
+    function onScanSuccess(decodedText) {
+      const status = document.getElementById("status");
+
+      if (decodedText === lastScan || scanningLocked) return;
+
+      lastScan = decodedText;
+      scanningLocked = true;
+
+      status.innerText = "Scanning...";
+      status.style.background = "#ffe08a";
+
+      fetch(webhookURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: decodedText,
+          timestamp: new Date().toISOString()
+        })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error("Server error");
+
+        status.innerText = "✅ SUCCESS - QR SENT";
+        status.style.background = "#7CFC90";
+
+        setTimeout(() => {
+          status.innerText = "Waiting for scan...";
+          status.style.background = "#eee";
+          scanningLocked = false;
+        }, 2000);
+      })
+      .catch(err => {
+        console.log(err);
+
+        status.innerText = "❌ ERROR / NETWORK";
+        status.style.background = "#ff6b6b";
+
+        setTimeout(() => {
+          status.innerText = "Waiting for scan...";
+          status.style.background = "#eee";
+          scanningLocked = false;
+        }, 2000);
+      });
+    }
+
+    const scanner = new Html5Qrcode("reader");
+
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length) {
+        scanner.start(
+          devices[0].id,
+          { fps: 10, qrbox: 250 },
+          onScanSuccess
+        );
+      }
+    }).catch(err => {
+      document.getElementById("status").innerText =
+        "❌ Camera error: " + err;
+    });
+  </script>
+
+</body>
+</html>
