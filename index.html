@@ -1,37 +1,44 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>QR Attendance Scanner</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-</head>
+let lastScan = "";
 
-<body>
-  <h2>QR Attendance System</h2>
-  <div id="reader" style="width:300px;"></div>
+function onScanSuccess(decodedText) {
+  if (decodedText === lastScan) return;
+  lastScan = decodedText;
 
-  <script>
-    const webhookURL = "https://your-n8n-webhook-url";
+  const status = document.getElementById("status");
 
-    function onScanSuccess(decodedText) {
-      fetch(webhookURL, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          student_id: decodedText,
-          timestamp: new Date().toISOString()
-        })
-      });
+  // 🔵 scanning detected
+  status.innerText = "Scanning...";
+  status.style.background = "#ffe08a"; // yellow
+
+  fetch(webhookURL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      student_id: decodedText,
+      timestamp: new Date().toISOString()
+    })
+  })
+  .then(res => {
+    if (res.ok) {
+      // 🟢 SUCCESS
+      status.innerText = "✅ DONE - QR SENT";
+      status.style.background = "#7CFC90"; // green
+
+      // reset after 2 seconds
+      setTimeout(() => {
+        status.innerText = "Waiting for scan...";
+        status.style.background = "#eee";
+      }, 2000);
+
+    } else {
+      // 🔴 server error
+      status.innerText = "❌ ERROR - NOT SENT";
+      status.style.background = "#ff6b6b";
     }
-
-    const html5QrCode = new Html5Qrcode("reader");
-
-    Html5Qrcode.getCameras().then(devices => {
-      html5QrCode.start(
-        devices[0].id,
-        { fps: 10, qrbox: 250 },
-        onScanSuccess
-      );
-    });
-  </script>
-</body>
-</html>
+  })
+  .catch(err => {
+    status.innerText = "❌ NETWORK ERROR";
+    status.style.background = "#ff6b6b";
+    console.log(err);
+  });
+}
